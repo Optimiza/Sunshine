@@ -124,3 +124,64 @@ TEST_F(ConfigPersistenceTest, SelectsAllDriversOnlyForLicensedUsersWithoutAPrefe
   EXPECT_FALSE(config::select_all_gamepad_drivers_if_licensed(true));
   EXPECT_EQ(file_handler::read_file(config_file().string().c_str()), "gamepad_driver = all\n");
 }
+
+namespace {
+
+  /**
+   * @brief Fixture that restores the configured gamepad and the apps file after each parse.
+   */
+  class ConfigGamepadKeyTest: public testing::Test {
+  protected:
+    /**
+     * @brief Preserve the configured gamepad, leaving the default in place, and point the apps file at one that exists.
+     */
+    void SetUp() override {
+      original_gamepad_ = config::input.gamepad;
+      original_file_apps_ = config::stream.file_apps;
+      config::stream.file_apps = SUNSHINE_SOURCE_DIR "/tests/unit/test_config.cpp";
+    }
+
+    /**
+     * @brief Restore the configured gamepad and the apps file.
+     */
+    void TearDown() override {
+      config::input.gamepad = std::move(original_gamepad_);
+      config::stream.file_apps = std::move(original_file_apps_);
+    }
+
+  private:
+    std::string original_gamepad_;  ///< Configured gamepad restored after each test.
+    std::string original_file_apps_;  ///< Apps file restored after each test.
+  };
+
+}  // namespace
+
+TEST_F(ConfigGamepadKeyTest, DefaultsToAuto) {
+  config::apply_config_for_test("");
+
+  EXPECT_EQ(config::input.gamepad, "auto");
+}
+
+TEST_F(ConfigGamepadKeyTest, AcceptsDualSense) {
+  config::apply_config_for_test("gamepad = ds5\n");
+
+  EXPECT_EQ(config::input.gamepad, "ds5");
+}
+
+TEST_F(ConfigGamepadKeyTest, AcceptsSwitchPro) {
+  config::apply_config_for_test("gamepad = switch\n");
+
+  EXPECT_EQ(config::input.gamepad, "switch");
+}
+
+TEST_F(ConfigGamepadKeyTest, AcceptsAuto) {
+  config::apply_config_for_test("gamepad = auto\n");
+
+  EXPECT_EQ(config::input.gamepad, "auto");
+}
+
+TEST_F(ConfigGamepadKeyTest, IgnoresUnknownValue) {
+  config::apply_config_for_test("gamepad = bogus\n");
+
+  EXPECT_EQ(config::input.gamepad, "auto");
+}

@@ -128,30 +128,38 @@ TEST_F(ConfigPersistenceTest, SelectsAllDriversOnlyForLicensedUsersWithoutAPrefe
 namespace {
 
   /**
-   * @brief Fixture that restores the configured gamepad and the apps file after each parse.
+   * @brief Fixture that restores every configuration struct a parse can change, and points the apps file at one that exists.
    */
   class ConfigGamepadKeyTest: public testing::Test {
   protected:
     /**
-     * @brief Preserve the configured gamepad, leaving the default in place, and point the apps file at one that exists.
+     * @brief Leave the configured gamepad at its default and keep the parse away from the user's apps file.
      */
     void SetUp() override {
-      original_gamepad_ = config::input.gamepad;
-      original_file_apps_ = config::stream.file_apps;
       config::stream.file_apps = SUNSHINE_SOURCE_DIR "/tests/unit/test_config.cpp";
     }
 
     /**
-     * @brief Restore the configured gamepad and the apps file.
+     * @brief Restore the configuration the parse changed.
      */
     void TearDown() override {
-      config::input.gamepad = std::move(original_gamepad_);
-      config::stream.file_apps = std::move(original_file_apps_);
+      config::video = original_video_;
+      config::audio = original_audio_;
+      config::stream = original_stream_;
+      config::nvhttp = original_nvhttp_;
+      config::input = original_input_;
+      config::sunshine = original_sunshine_;
+      config::modified_config_settings = original_modified_config_settings_;
     }
 
   private:
-    std::string original_gamepad_;  ///< Configured gamepad restored after each test.
-    std::string original_file_apps_;  ///< Apps file restored after each test.
+    config::video_t original_video_ {config::video};  ///< Video configuration restored after each test.
+    config::audio_t original_audio_ {config::audio};  ///< Audio configuration restored after each test.
+    config::stream_t original_stream_ {config::stream};  ///< Stream configuration restored after each test.
+    config::nvhttp_t original_nvhttp_ {config::nvhttp};  ///< HTTP configuration restored after each test.
+    config::input_t original_input_ {config::input};  ///< Input configuration restored after each test.
+    config::sunshine_t original_sunshine_ {config::sunshine};  ///< Core configuration restored after each test.
+    decltype(config::modified_config_settings) original_modified_config_settings_ {config::modified_config_settings};  ///< Modified settings restored after each test.
   };
 
 }  // namespace
@@ -184,4 +192,40 @@ TEST_F(ConfigGamepadKeyTest, IgnoresUnknownValue) {
   config::apply_config_for_test("gamepad = bogus\n");
 
   EXPECT_EQ(config::input.gamepad, "auto");
+}
+
+namespace {
+
+  /**
+   * @brief Runs the gamepad key fixture's setup and teardown around a parse, outside a test.
+   */
+  class ConfigGamepadKeyFixtureProbe: public ConfigGamepadKeyTest {
+  public:
+    /**
+     * @brief Parse @p file_content between the fixture's setup and teardown.
+     *
+     * @param file_content Configuration text to apply.
+     */
+    void parse(std::string_view file_content) {
+      SetUp();
+      config::apply_config_for_test(file_content);
+      TearDown();
+    }
+
+    /**
+     * @brief Unused: the probe only drives the fixture.
+     */
+    void TestBody() override {}
+  };
+
+}  // namespace
+
+TEST(ConfigGamepadKeyFixtureTest, RestoresWhatAParseChanges) {
+  const auto original = config::sunshine.csrf_allowed_origins;
+  config::sunshine.csrf_allowed_origins = {"https://example.test"};
+
+  ConfigGamepadKeyFixtureProbe {}.parse("gamepad = ds5\n");
+
+  EXPECT_EQ(config::sunshine.csrf_allowed_origins, std::vector<std::string> {"https://example.test"});
+  config::sunshine.csrf_allowed_origins = original;
 }

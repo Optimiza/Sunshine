@@ -59,7 +59,7 @@ namespace platf {
 
     av_frame.reset(frame);
 
-    resolution_fn(new_frame->width, new_frame->height);
+    resolution_fn(frame->width, frame->height);
 
     return 0;
   }
